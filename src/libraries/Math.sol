@@ -1,12 +1,9 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-
+// SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.10;
 
-// a library for performing various math operations
-
-library Math {
-    function min(uint256 x, uint256 y) internal pure returns (uint256 z) {
-        z = x < y ? x : y;
+contract Math {
+    function min(uint256 a, uint256 b) internal pure returns (uint256) {
+        return a < b ? a : b;
     }
 
     // babylonian method (https://en.wikipedia.org/wiki/Methods_of_computing_square_roots#Babylonian_method)

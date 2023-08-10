@@ -6,7 +6,6 @@ import "../src/UniswapV2Factory.sol";
 import "../src/UniswapV2Pair.sol";
 import "../src/libraries/UQ112x112.sol";
 import "./mocks/ERC20Mintable.sol";
-// import "../lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
 
 contract UniswapV2PairTest is Test {
     ERC20Mintable token0;
@@ -20,7 +19,7 @@ contract UniswapV2PairTest is Test {
         token0 = new ERC20Mintable("Token A", "TKNA");
         token1 = new ERC20Mintable("Token B", "TKNB");
 
-        UniswapV2Factory factory = new UniswapV2Factory(address(testUser));
+        UniswapV2Factory factory = new UniswapV2Factory();
         address pairAddress = factory.createPair(
             address(token0),
             address(token1)
@@ -149,7 +148,7 @@ contract UniswapV2PairTest is Test {
         token0.transfer(address(pair), 1000);
         token1.transfer(address(pair), 1000);
 
-        vm.expectRevert("UniswapV2: INSUFFICIENT_LIQUIDITY_MINTED");
+        vm.expectRevert(encodeError("InsufficientLiquidityMinted()"));
         pair.mint(address(this));
     }
 
@@ -247,7 +246,7 @@ contract UniswapV2PairTest is Test {
         pair.mint(address(this));
 
         vm.prank(address(0xdeadbeef));
-        vm.expectRevert("UniswapV2: INSUFFICIENT_LIQUIDITY_BURNED");
+        vm.expectRevert(encodeError("InsufficientLiquidityBurned()"));
         pair.burn(address(this));
     }
 
@@ -333,7 +332,7 @@ contract UniswapV2PairTest is Test {
         token1.transfer(address(pair), 2 ether);
         pair.mint(address(this));
 
-        vm.expectRevert("UniswapV2: INSUFFICIENT_OUTPUT_AMOUNT");
+        vm.expectRevert(encodeError("InsufficientOutputAmount()"));
         pair.swap(0, 0, address(this), "");
     }
 
@@ -342,10 +341,10 @@ contract UniswapV2PairTest is Test {
         token1.transfer(address(pair), 2 ether);
         pair.mint(address(this));
 
-        vm.expectRevert("UniswapV2: INSUFFICIENT_LIQUIDITY");
+        vm.expectRevert(encodeError("InsufficientLiquidity()"));
         pair.swap(0, 2.1 ether, address(this), "");
 
-        vm.expectRevert("UniswapV2: INSUFFICIENT_LIQUIDITY");
+        vm.expectRevert(encodeError("InsufficientLiquidity()"));
         pair.swap(1.1 ether, 0, address(this), "");
     }
 
@@ -377,7 +376,7 @@ contract UniswapV2PairTest is Test {
 
         token0.transfer(address(pair), 0.1 ether);
 
-        vm.expectRevert("UniswapV2: K");
+        vm.expectRevert(encodeError("InvalidK()"));
         pair.swap(0, 0.36 ether, address(this), "");
 
         assertEq(
@@ -400,7 +399,7 @@ contract UniswapV2PairTest is Test {
 
         token0.transfer(address(pair), 0.1 ether);
 
-        vm.expectRevert("UniswapV2: K");
+        vm.expectRevert(encodeError("InvalidK()"));
         pair.swap(0, 0.181322178776029827 ether, address(this), "");
     }
 
@@ -475,26 +474,26 @@ contract UniswapV2PairTest is Test {
         );
     }
 
-    // function testFlashloan() public {
-    //     token0.transfer(address(pair), 1 ether);
-    //     token1.transfer(address(pair), 2 ether);
-    //     pair.mint(address(this));
+    function testFlashloan() public {
+        token0.transfer(address(pair), 1 ether);
+        token1.transfer(address(pair), 2 ether);
+        pair.mint(address(this));
 
-    //     uint256 flashloanAmount = 0.1 ether;
-    //     uint256 flashloanFee = (flashloanAmount * 1000) /
-    //         997 -
-    //         flashloanAmount +
-    //         1;
+        uint256 flashloanAmount = 0.1 ether;
+        uint256 flashloanFee = (flashloanAmount * 1000) /
+            997 -
+            flashloanAmount +
+            1;
 
-    //     Flashloaner fl = new Flashloaner();
+        Flashloaner fl = new Flashloaner();
 
-    //     token1.transfer(address(fl), flashloanFee);
+        token1.transfer(address(fl), flashloanFee);
 
-    //     fl.flashloan(address(pair), 0, flashloanAmount, address(token1));
+        fl.flashloan(address(pair), 0, flashloanAmount, address(token1));
 
-    //     assertEq(token1.balanceOf(address(fl)), 0);
-    //     assertEq(token1.balanceOf(address(pair)), 2 ether + flashloanFee);
-    // }
+        assertEq(token1.balanceOf(address(fl)), 0);
+        assertEq(token1.balanceOf(address(pair)), 2 ether + flashloanFee);
+    }
 }
 
 contract TestUser {
@@ -518,43 +517,44 @@ contract TestUser {
     }
 }
 
-// contract Flashloaner {
-//     error InsufficientFlashLoanAmount();
+contract Flashloaner {
+    error InsufficientFlashLoanAmount();
 
-//     uint256 expectedLoanAmount;
+    uint256 expectedLoanAmount;
 
-//     function flashloan(
-//         address pairAddress,
-//         uint256 amount0Out,
-//         uint256 amount1Out,
-//         address tokenAddress
-//     ) public {
-//         if (amount0Out > 0) {
-//             expectedLoanAmount = amount0Out;
-//         }
-//         if (amount1Out > 0) {
-//             expectedLoanAmount = amount1Out;
-//         }
+    function flashloan(
+        address pairAddress,
+        uint256 amount0Out,
+        uint256 amount1Out,
+        address tokenAddress
+    ) public {
+        if (amount0Out > 0) {
+            expectedLoanAmount = amount0Out;
+        }
+        if (amount1Out > 0) {
+            expectedLoanAmount = amount1Out;
+        }
 
-//         UniswapV2Pair(pairAddress).swap(
-//             amount0Out,
-//             amount1Out,
-//             address(this),
-//             abi.encode(tokenAddress)
-//         );
-//     }
+        UniswapV2Pair(pairAddress).swap(
+            amount0Out,
+            amount1Out,
+            address(this),
+            abi.encode(tokenAddress)
+        );
+    }
 
-//     function UniswapV2Call(
-//         address sender,
-//         uint256 amount0Out,
-//         uint256 amount1Out,
-//         bytes calldata data
-//     ) public {
-//         address tokenAddress = abi.decode(data, (address));
-//         uint256 balance = ERC20(tokenAddress).balanceOf(address(this));
+    function UniswapV2Call(
+        address sender,
+        uint256 amount0Out,
+        uint256 amount1Out,
+        bytes calldata data
+    ) public {
+        address tokenAddress = abi.decode(data, (address));
+        uint256 balance = ERC20(tokenAddress).balanceOf(address(this));
 
-//         if (balance < expectedLoanAmount) revert InsufficientFlashLoanAmount();
+        if (balance < expectedLoanAmount) revert InsufficientFlashLoanAmount();
 
-//         ERC20(tokenAddress).transfer(msg.sender, balance);
-//     }
-// }
+        ERC20(tokenAddress).transfer(msg.sender, balance);
+        console.log(sender, amount0Out, amount1Out);
+    }
+}
