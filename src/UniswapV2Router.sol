@@ -3,7 +3,7 @@ pragma solidity ^0.8.10;
 
 import "./interfaces/IUniswapV2Factory.sol";
 import "./interfaces/IUniswapV2Pair.sol";
-import "./UniswapV2Library.sol";
+import {UniswapV2Pair} from "./UniswapV2Pair.sol";
 
 contract UniswapV2Router {
     error ExcessiveInputAmount();
@@ -11,6 +11,10 @@ contract UniswapV2Router {
     error InsufficientBAmount();
     error InsufficientOutputAmount();
     error SafeTransferFailed();
+
+    error InsufficientAmount();
+    error InsufficientLiquidity();
+    error InvalidPath();
 
     IUniswapV2Factory factory;
 
@@ -46,7 +50,7 @@ contract UniswapV2Router {
             amountAMin,
             amountBMin
         );
-        address pairAddress = UniswapV2Library.pairFor(
+        address pairAddress = pairFor(
             address(factory),
             tokenA,
             tokenB
@@ -64,7 +68,8 @@ contract UniswapV2Router {
         uint256 amountBMin,
         address to
     ) public returns (uint256 amountA, uint256 amountB) {
-        address pair = UniswapV2Library.pairFor(
+        address pair = 
+        pairFor(
             address(factory),
             tokenA,
             tokenB
@@ -81,7 +86,8 @@ contract UniswapV2Router {
         address[] calldata path,
         address to
     ) public returns (uint256[] memory amounts) {
-        amounts = UniswapV2Library.getAmountsOut(
+        amounts = 
+        getAmountsOut(
             address(factory),
             amountIn,
             path
@@ -91,7 +97,8 @@ contract UniswapV2Router {
         _safeTransferFrom(
             path[0],
             msg.sender,
-            UniswapV2Library.pairFor(address(factory), path[0], path[1]),
+            
+            pairFor(address(factory), path[0], path[1]),
             amounts[0]
         );
         _swap(amounts, path, to);
@@ -103,7 +110,8 @@ contract UniswapV2Router {
         address[] calldata path,
         address to
     ) public returns (uint256[] memory amounts) {
-        amounts = UniswapV2Library.getAmountsIn(
+        amounts = 
+        getAmountsIn(
             address(factory),
             amountOut,
             path
@@ -113,7 +121,8 @@ contract UniswapV2Router {
         _safeTransferFrom(
             path[0],
             msg.sender,
-            UniswapV2Library.pairFor(address(factory), path[0], path[1]),
+            
+            pairFor(address(factory), path[0], path[1]),
             amounts[0]
         );
         _swap(amounts, path, to);
@@ -133,20 +142,23 @@ contract UniswapV2Router {
     ) internal {
         for (uint256 i; i < path.length - 1; i++) {
             (address input, address output) = (path[i], path[i + 1]);
-            (address token0, ) = UniswapV2Library.sortTokens(input, output);
+            (address token0, ) = 
+            sortTokens(input, output);
             uint256 amountOut = amounts[i + 1];
             (uint256 amount0Out, uint256 amount1Out) = input == token0
                 ? (uint256(0), amountOut)
                 : (amountOut, uint256(0));
             address to = i < path.length - 2
-                ? UniswapV2Library.pairFor(
+                ? 
+                pairFor(
                     address(factory),
                     output,
                     path[i + 2]
                 )
                 : to_;
             IUniswapV2Pair(
-                UniswapV2Library.pairFor(address(factory), input, output)
+                
+                pairFor(address(factory), input, output)
             ).swap(amount0Out, amount1Out, to, "");
         }
     }
@@ -159,7 +171,8 @@ contract UniswapV2Router {
         uint256 amountAMin,
         uint256 amountBMin
     ) internal returns (uint256 amountA, uint256 amountB) {
-        (uint256 reserveA, uint256 reserveB) = UniswapV2Library.getReserves(
+        (uint256 reserveA, uint256 reserveB) = 
+        getReserves(
             address(factory),
             tokenA,
             tokenB
@@ -168,7 +181,8 @@ contract UniswapV2Router {
         if (reserveA == 0 && reserveB == 0) {
             (amountA, amountB) = (amountADesired, amountBDesired);
         } else {
-            uint256 amountBOptimal = UniswapV2Library.quote(
+            uint256 amountBOptimal = 
+            quote(
                 amountADesired,
                 reserveA,
                 reserveB
@@ -177,7 +191,8 @@ contract UniswapV2Router {
                 if (amountBOptimal <= amountBMin) revert InsufficientBAmount();
                 (amountA, amountB) = (amountADesired, amountBOptimal);
             } else {
-                uint256 amountAOptimal = UniswapV2Library.quote(
+                uint256 amountAOptimal = 
+                quote(
                     amountBDesired,
                     reserveB,
                     reserveA
@@ -206,5 +221,135 @@ contract UniswapV2Router {
         );
         if (!success || (data.length != 0 && !abi.decode(data, (bool))))
             revert SafeTransferFailed();
+    }
+
+    
+
+    // retrieves the reserve amounts of two tokens
+    function getReserves(
+        address factoryAddress,
+        address tokenA,
+        address tokenB
+    ) public returns (uint256 reserveA, uint256 reserveB) {
+        (address token0, address token1) = sortTokens(tokenA, tokenB);
+        (uint256 reserve0, uint256 reserve1, ) = IUniswapV2Pair(
+            pairFor(factoryAddress, token0, token1)
+        ).getReserves();
+        (reserveA, reserveB) = tokenA == token0
+            ? (reserve0, reserve1)
+            : (reserve1, reserve0);
+    }
+
+// expected output amount after a swap
+    function quote(
+        uint256 amountIn,
+        uint256 reserveIn,
+        uint256 reserveOut
+    ) public pure returns (uint256 amountOut) {
+        if (amountIn == 0) revert InsufficientAmount();
+        if (reserveIn == 0 || reserveOut == 0) revert InsufficientLiquidity();
+
+        return (amountIn * reserveOut) / reserveIn;
+    }
+
+    function sortTokens(address tokenA, address tokenB)
+        internal
+        pure
+        returns (address token0, address token1)
+    {
+        return tokenA < tokenB ? (tokenA, tokenB) : (tokenB, tokenA);
+    }
+
+    function pairFor(
+        address factoryAddress,
+        address tokenA,
+        address tokenB
+    ) internal pure returns (address pairAddress) {
+        (address token0, address token1) = sortTokens(tokenA, tokenB);
+        pairAddress = address(
+            uint160(
+                uint256(
+                    keccak256(
+                        abi.encodePacked(
+                            hex"ff",
+                            factoryAddress,
+                            keccak256(abi.encodePacked(token0, token1)),
+                            keccak256(type(UniswapV2Pair).creationCode)
+                        )
+                    )
+                )
+            )
+        );
+    }
+
+    function getAmountOut(
+        uint256 amountIn,
+        uint256 reserveIn,
+        uint256 reserveOut
+    ) public pure returns (uint256) {
+        if (amountIn == 0) revert InsufficientAmount();
+        if (reserveIn == 0 || reserveOut == 0) revert InsufficientLiquidity();
+
+        uint256 amountInWithFee = amountIn * 997;
+        uint256 numerator = amountInWithFee * reserveOut;
+        uint256 denominator = (reserveIn * 1000) + amountInWithFee;
+
+        return numerator / denominator;
+    }
+
+    function getAmountsOut(
+        address factoryy,
+        uint256 amountIn,
+        address[] memory path
+    ) public returns (uint256[] memory) {
+        if (path.length < 2) revert InvalidPath();
+        uint256[] memory amounts = new uint256[](path.length);
+        amounts[0] = amountIn;
+
+        for (uint256 i; i < path.length - 1; i++) {
+            (uint256 reserve0, uint256 reserve1) = getReserves(
+                factoryy,
+                path[i],
+                path[i + 1]
+            );
+            amounts[i + 1] = getAmountOut(amounts[i], reserve0, reserve1);
+        }
+
+        return amounts;
+    }
+
+    function getAmountIn(
+        uint256 amountOut,
+        uint256 reserveIn,
+        uint256 reserveOut
+    ) public pure returns (uint256) {
+        if (amountOut == 0) revert InsufficientAmount();
+        if (reserveIn == 0 || reserveOut == 0) revert InsufficientLiquidity();
+
+        uint256 numerator = reserveIn * amountOut * 1000;
+        uint256 denominator = (reserveOut - amountOut) * 997;
+
+        return (numerator / denominator) + 1;
+    }
+
+    function getAmountsIn(
+        address factoryIn,
+        uint256 amountOut,
+        address[] memory path
+    ) public returns (uint256[] memory) {
+        if (path.length < 2) revert InvalidPath();
+        uint256[] memory amounts = new uint256[](path.length);
+        amounts[amounts.length - 1] = amountOut;
+
+        for (uint256 i = path.length - 1; i > 0; i--) {
+            (uint256 reserve0, uint256 reserve1) = getReserves(
+                factoryIn,
+                path[i - 1],
+                path[i]
+            );
+            amounts[i - 1] = getAmountIn(amounts[i], reserve0, reserve1);
+        }
+
+        return amounts;
     }
 }
