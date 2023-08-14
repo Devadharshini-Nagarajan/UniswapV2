@@ -4,7 +4,7 @@ pragma solidity ^0.8.10;
 import "forge-std/Test.sol";
 import "../src/UniswapV2Factory.sol";
 import "../src/UniswapV2Pair.sol";
-import "./mocks/ERC20Mintable.sol";
+import "../src/libraries/ERC20Mintable.sol";
 
 contract UniswapV2FactoryTest is Test {
     UniswapV2Factory factory;
