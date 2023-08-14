@@ -3,7 +3,6 @@ pragma solidity ^0.8.10;
 
 import "solmate/tokens/ERC20.sol";
 import "./libraries/Math.sol";
-import "./libraries/UQ112x112.sol";
 import "./interfaces/IUniswapV2Callee.sol";
 
 interface IERC20 {
@@ -21,6 +20,18 @@ error InsufficientLiquidityMinted();
 error InsufficientOutputAmount();
 error InvalidK();
 error TransferFailed();
+
+library UQ112x112 {
+    uint224 constant Q112 = 2**112;
+
+    function encode(uint112 y) internal pure returns (uint224 z) {
+        z = uint224(y) * Q112;
+    }
+
+    function uqdiv(uint224 x, uint112 y) internal pure returns (uint224 z) {
+        z = x / uint224(y);
+    }
+}
 
 contract UniswapV2Pair is ERC20, Math {
     using UQ112x112 for uint224;
